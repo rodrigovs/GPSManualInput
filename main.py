@@ -2,7 +2,9 @@ import sys
 import glob
 import serial
 import time
-
+from io import BytesIO
+from PIL import Image
+import requests
 
 import threading
 
@@ -47,6 +49,14 @@ def exec_coordenadas(ser_obj):
         ser_obj.write(b'GPS\n')
         print('enviando: ' + line)
         ser_obj.write(bytes(line,'ascii'))
+        ser_obj.write(b'POI_HANDLE')
+        
+        # url = "https://maps.googleapis.com/maps/api/staticmap?center=-25.429749,-49.240508&markers=color:blue%7Clabel:P%7C-25.429749,-49.240508&zoom=17&size=300x300&maptype=roadmap&key=AIzaSyAn540o6KOJ117r0h5USUIUz3mWNp0fl7E"
+        # request = requests.get(url)
+        # buffer = BytesIO(request.content)
+        # image = Image.open(buffer)
+        # image
+        
         time.sleep(10)
     
     
@@ -107,6 +117,9 @@ except KeyboardInterrupt:
     print("Conexao encerrada")
 
 
+
+
+
 # coordenadas_txt = open('coordenadas.txt')
 
 # a.readline()
@@ -132,10 +145,4 @@ except KeyboardInterrupt:
 # image
 
 
-# from io import StringIO
-# from PIL import Image
-# import urllib
 
-# url = "http://maps.googleapis.com/maps/api/staticmap?center=-30.027489,-51.229248&size=800x800&zoom=14&sensor=false"
-# buffer = StringIO(urllib.urlopen(url).read())
-# image = Image.open(buffer)
