@@ -10,16 +10,26 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QGraphicsPixmapItem, QWidget, QTableWidgetItem)
-from PyQt5.QtGui import QPixmap, QImage
+from PyQt5.QtGui import QPixmap, QImage, QBrush, QColor
 import sys
+import glob
+import serial
+import time
 from io import BytesIO
 from PIL import Image
 import requests
 
+import threading
+
 class WidgetGallery(QDialog):
     def __init__(self, parent=None):
         super(WidgetGallery, self).__init__(parent)
-            
+        
+        self.contador_coordenada = 0
+        self.plain_text_coordenadas_enviadas = ''
+        self.filename_coordenadas = 'coordenadas_volta.txt'
+        self.serial_port = 'COM3'
+        self.serial_baudrate = 115200
         self.originalPalette = QApplication.palette()
 
         styleComboBox = QComboBox()
@@ -45,7 +55,7 @@ class WidgetGallery(QDialog):
         disableWidgetsCheckBox.toggled.connect(self.topRightGroupBox.setDisabled)
         # disableWidgetsCheckBox.toggled.connect(self.bottomLeftTabWidget.setDisabled)
         # disableWidgetsCheckBox.toggled.connect(self.bottomRightGroupBox.setDisabled)
-
+        
         
         topLayout = QHBoxLayout()
         topLayout.addWidget(styleLabel)
@@ -95,16 +105,25 @@ class WidgetGallery(QDialog):
                 QSizePolicy.Ignored)
 
         tab1 = QWidget()
-        tableWidget = QTableWidget(10, 1)
-        tItem = QTableWidgetItem()
-        tItem.setText("Ola");
-        tItem2 = QTableWidgetItem()
-        tItem2.setText("Ola2");
-        tItem3 = QTableWidgetItem()
-        tItem3.setText("Ola3");
-        tableWidget.setItem(0,0,tItem)
-        tableWidget.setItem(1,0,tItem2)
-        tableWidget.setItem(2,0,tItem3)
+        
+        
+        
+        lines = tuple(open(self.filename_coordenadas, 'r'))
+        tableWidget = QTableWidget(len(lines), 1)
+        self.lista_coordenadas = lines
+        for num,line in enumerate(lines, start=0):
+            print(str(num) + ' : ' + line)
+            tItem = QTableWidgetItem()
+            tItem.setText(line)
+            tableWidget.setItem(num,0,tItem)
+            
+        # qb = QBrush()
+        # qb.setColor(QColor.blue)
+        # tItem3.setBackground(QtGui.color.blue)
+        
+        
+        # tableWidget.setItem(1,0,tItem2)
+        # tableWidget.setItem(2,0,tItem3)
         tableWidget.setColumnWidth(0,320)
         
         tab1hbox = QHBoxLayout()
@@ -113,28 +132,40 @@ class WidgetGallery(QDialog):
         tab1.setLayout(tab1hbox)
 
         tab2 = QWidget()
-        textEdit = QTextEdit()
+        self.textEdit = QTextEdit()
 
-        textEdit.setPlainText("Twinkle, twinkle, little star,\n"
-                              "How I wonder what you are.\n" 
-                              "Up above the world so high,\n"
-                              "Like a diamond in the sky.\n"
-                              "Twinkle, twinkle, little star,\n" 
-                              "How I wonder what you are!\n")
+        self.textEdit.setPlainText("nada ainda")
 
         tab2hbox = QHBoxLayout()
         tab2hbox.setContentsMargins(5, 5, 5, 5)
-        tab2hbox.addWidget(textEdit)
+        tab2hbox.addWidget(self.textEdit)
         tab2.setLayout(tab2hbox)
         
-        self.topLeftGroupBox.addTab(tab1, "&Table")
-        self.topLeftGroupBox.addTab(tab2, "Text &Edit")
+        self.topLeftGroupBox.addTab(tab1, "Coordenadas &Inseridas")
+        self.topLeftGroupBox.addTab(tab2, "Coordenadas &Enviadas")
 
     def createTopRightGroupBox(self):
         self.topRightGroupBox = QGroupBox("Mapa")
 
         defaultPushButton = QPushButton("Enviar coordenada")
         defaultPushButton.setDefault(True)
+        defaultPushButton.clicked.connect(lambda:self.btn_enviar_coordenada_pressed())
+        
+        
+        connectCOMPushButton = QPushButton("Conectar COM")
+        connectCOMPushButton.clicked.connect(lambda:self.btn_conectar_serial())
+        
+        unconnectCOMPushButton = QPushButton("Desconectar COM")
+        unconnectCOMPushButton.clicked.connect(lambda:self.btn_desconectar_serial())
+        
+        setGPSManualModePushButton = QPushButton("Set GPS Manual Mode")
+        setGPSManualModePushButton.clicked.connect(lambda:self.btn_set_gps_manual_mode())
+        
+        poiHandlePushButton = QPushButton("Enviar POI HANDLE")
+        poiHandlePushButton.clicked.connect(lambda:self.btn_enviar_poi_handle())
+        
+        autoModePushButton = QPushButton("Modo automático")
+        autoModePushButton.clicked.connect(lambda:self.btn_play_auto_coordinates_mode(1))
         
         url = "https://maps.googleapis.com/maps/api/staticmap?center=-25.429749,-49.240508&markers=color:blue%7Clabel:P%7C-25.429749,-49.240508&zoom=17&size=400x400&maptype=roadmap&key=AIzaSyAn540o6KOJ117r0h5USUIUz3mWNp0fl7E"
         request = requests.get(url)
@@ -143,12 +174,17 @@ class WidgetGallery(QDialog):
         pixmap = QPixmap()
         pixmap.loadFromData(request.content)
         
-        label = QLabel(self)
-        label.setPixmap(pixmap)
+        self.labelMapa = QLabel(self)
+        self.labelMapa.setPixmap(pixmap)
 
         layout = QVBoxLayout()
-        layout.addWidget(label)
+        layout.addWidget(self.labelMapa)
         layout.addWidget(defaultPushButton)
+        layout.addWidget(poiHandlePushButton)
+        layout.addWidget(autoModePushButton)
+        layout.addWidget(setGPSManualModePushButton)
+        layout.addWidget(connectCOMPushButton)
+        layout.addWidget(unconnectCOMPushButton)
         
         
         layout.addStretch(1)
@@ -217,7 +253,140 @@ class WidgetGallery(QDialog):
         timer = QTimer(self)
         timer.timeout.connect(self.advanceProgressBar)
         timer.start(1000)
+        
+    def btn_enviar_coordenada_pressed(self):
+        
+        if( self.contador_coordenada + 1 <= len(self.lista_coordenadas)):
+            
+            string_coordenada = self.lista_coordenadas[self.contador_coordenada].split('\n')[0]
+           
+            self.plain_text_coordenadas_enviadas += str(self.contador_coordenada) + " - " + string_coordenada + "\n"
+            
+            print('coordenada enviada: '+ str(self.contador_coordenada) + " - " + string_coordenada)
+            
+            self.textEdit.setPlainText(self.plain_text_coordenadas_enviadas)
+            self.contador_coordenada += 1
+            
+            
+            string_lat_lon = string_coordenada.split('_')[0] + "," + string_coordenada.split('_')[1]
+            url = "https://maps.googleapis.com/maps/api/staticmap?center=" + string_lat_lon +"&markers=color:blue%7Clabel:P%7C" + string_lat_lon + "&zoom=17&size=400x400&maptype=roadmap&key=AIzaSyAn540o6KOJ117r0h5USUIUz3mWNp0fl7E"
 
+            request = requests.get(url)
+           # # buffer = BytesIO(request.content)
+    
+            pixmap = QPixmap()
+            pixmap.loadFromData(request.content)
+            self.labelMapa.setPixmap(pixmap)
+           #  label = QLabel(self)
+           #  label.setPixmap(pixmap)
+
+
+
+            
+            self.serial_connection.write(b'GPS\n')
+            print('enviando: ' + string_coordenada)
+            self.serial_connection.write(bytes(string_coordenada,'ascii'))
+            # time.sleep(5)
+            # print('enviando POI_HANDLE')
+            # self.serial_connection.write(b'POI_HANDLE')
+
+            
+        else:
+            self.plain_text_coordenadas_enviadas += "Fim das coordenadas" + " \n"
+            self.textEdit.setPlainText(self.plain_text_coordenadas_enviadas)
+            return(0)
+        
+        return(1)
+    
+    def btn_enviar_poi_handle(self):
+        print('enviando POI_HANDLE')
+        self.serial_connection.write(b'POI_HANDLE')
+    
+    def btn_conectar_serial(self):
+        print('Conectar Serial')
+        lista_available_coms = self.serial_ports()
+        if(not(self.serial_port in lista_available_coms)):
+            print(self.serial_port + ' nao exibida na lista, tente outro nome')
+            print(lista_available_coms)
+            sys.exit()
+
+
+
+        self.serial_connection = serial.Serial(port=self.serial_port, baudrate=self.serial_baudrate)
+
+        thread_input_data = threading.Thread(target=self.read_serial)
+        thread_input_data.start()
+        
+        
+    def btn_desconectar_serial(self):
+        print('desconectar Serial')
+        self.serial_connection.close()
+        print("Conexao encerrada")
+        
+
+    def read_serial(self):
+        while True:
+            #print(serial_connection.readline())
+            print(self.serial_connection.readline())
+            
+            # if(clear_output):
+            #     output = ''
+            # output += serial_connection.read_all()
+            # #linhas = output.split('\n')
+            # clear_output = True
+            # if(len(output) > 0):
+            #     print(output)
+                        
+
+        
+    
+    def btn_set_gps_manual_mode(self):
+        print('Modo manual setado')
+        print('enviando set manual mode')
+        self.serial_connection.write(b'SET_GPS_MANUAL_MODE\n')
+        
+        
+    def btn_play_auto_coordinates_mode(self,time):
+        print('Modo automático acionado com tempo: ' + str(time))
+        while(self.btn_enviar_coordenada_pressed() != 0):
+            time.sleep(1)
+            self.btn_enviar_poi_handle()
+            time.sleep(1)
+        
+        
+        
+        
+        
+        
+    def serial_ports(self):
+        """ Lists serial port names
+
+        :raises EnvironmentError:
+            On unsupported or unknown platforms
+        :returns:
+            A list of the serial ports available on the system
+            """
+        if sys.platform.startswith('win'):
+            ports = ['COM%s' % (i + 1) for i in range(256)]
+        elif sys.platform.startswith('linux') or sys.platform.startswith('cygwin'):
+            # this excludes your current terminal "/dev/tty"
+            ports = glob.glob('/dev/tty[A-Za-z]*')
+        elif sys.platform.startswith('darwin'):
+            ports = glob.glob('/dev/tty.*')
+        else:
+            raise EnvironmentError('Unsupported platform')
+
+        result = []
+        for port in ports:
+            try:
+                s = serial.Serial(port)
+                s.close()
+                result.append(port)
+            except (OSError, serial.SerialException):
+                pass
+        return result
+
+        
 app = QApplication(sys.argv)
 gallery = WidgetGallery()
 gallery.show()
