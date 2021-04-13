@@ -10,6 +10,7 @@ from PyQt5.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateTimeEdit,
         QProgressBar, QPushButton, QRadioButton, QScrollBar, QSizePolicy,
         QSlider, QSpinBox, QStyleFactory, QTableWidget, QTabWidget, QTextEdit,
         QVBoxLayout, QGraphicsPixmapItem, QWidget, QTableWidgetItem)
+
 from PyQt5.QtGui import QPixmap, QImage, QBrush, QColor
 import sys
 import glob
@@ -27,7 +28,7 @@ class WidgetGallery(QDialog):
         
         self.contador_coordenada = 0
         self.plain_text_coordenadas_enviadas = ''
-        self.filename_coordenadas = 'coordenadas_volta.txt'
+        self.filename_coordenadas = 'viagem_vinicius_2901.txt'
         self.serial_port = 'COM3'
         self.serial_baudrate = 115200
         self.originalPalette = QApplication.palette()
@@ -110,13 +111,20 @@ class WidgetGallery(QDialog):
         
         lines = tuple(open(self.filename_coordenadas, 'r'))
         tableWidget = QTableWidget(len(lines), 1)
-        self.lista_coordenadas = lines
+        linhas_filtradas = []
+
         for num,line in enumerate(lines, start=0):
+            
+            if(('*') in line):
+                break
+            
+            linhas_filtradas.append(line)
             print(str(num) + ' : ' + line)
             tItem = QTableWidgetItem()
             tItem.setText(line)
             tableWidget.setItem(num,0,tItem)
-            
+        
+        self.lista_coordenadas = linhas_filtradas
         # qb = QBrush()
         # qb.setColor(QColor.blue)
         # tItem3.setBackground(QtGui.color.blue)
@@ -164,9 +172,13 @@ class WidgetGallery(QDialog):
         poiHandlePushButton = QPushButton("Enviar POI HANDLE")
         poiHandlePushButton.clicked.connect(lambda:self.btn_enviar_poi_handle())
         
-        autoModePushButton = QPushButton("Modo automático")
-        autoModePushButton.clicked.connect(lambda:self.btn_play_auto_coordinates_mode(1))
+        self.autoModePushButton = QPushButton("Modo automático")
+        self.autoModePushButton.setCheckable(False)
+        self.autoModePushButton.setStyleSheet("background-color : red")
         
+        # self.autoModePushButton.toogl.connect()
+        # self.autoModePushButton.isDown.connect(lambda:self.btn_play_auto_coordinates_mode(4))
+        self.autoModePushButton.clicked.connect(lambda:self.btn_change_play_auto_state())
         url = "https://maps.googleapis.com/maps/api/staticmap?center=-25.429749,-49.240508&markers=color:blue%7Clabel:P%7C-25.429749,-49.240508&zoom=17&size=400x400&maptype=roadmap&key=AIzaSyAn540o6KOJ117r0h5USUIUz3mWNp0fl7E"
         request = requests.get(url)
        # buffer = BytesIO(request.content)
@@ -181,7 +193,7 @@ class WidgetGallery(QDialog):
         layout.addWidget(self.labelMapa)
         layout.addWidget(defaultPushButton)
         layout.addWidget(poiHandlePushButton)
-        layout.addWidget(autoModePushButton)
+        layout.addWidget(self.autoModePushButton)
         layout.addWidget(setGPSManualModePushButton)
         layout.addWidget(connectCOMPushButton)
         layout.addWidget(unconnectCOMPushButton)
@@ -346,12 +358,37 @@ class WidgetGallery(QDialog):
         self.serial_connection.write(b'SET_GPS_MANUAL_MODE\n')
         
         
-    def btn_play_auto_coordinates_mode(self,time):
-        print('Modo automático acionado com tempo: ' + str(time))
-        while(self.btn_enviar_coordenada_pressed() != 0):
-            time.sleep(1)
-            self.btn_enviar_poi_handle()
-            time.sleep(1)
+        
+        
+        
+    def btn_change_play_auto_state(self):
+        
+        
+        if(self.autoModePushButton.isChecked()):
+            print('false')
+            self.autoModePushButton.setCheckable(False) 
+            self.autoModePushButton.setStyleSheet("background-color : red") 
+                       
+            
+        else:
+            print('true')
+            self.autoModePushButton.setCheckable(True)  
+            self.autoModePushButton.setStyleSheet("background-color : green")
+            
+        
+        
+        
+    def btn_play_auto_coordinates_mode(self,stime):
+        print('Modo automático acionado com tempo: ' + str(stime))
+        print('play_auto')
+        self.btn_enviar_coordenada_pressed()
+        time.sleep(stime)
+        self.btn_enviar_poi_handle()
+        time.sleep(stime)
+        # res = 1
+        # while(res != 0):
+        #     print('auto mode ligado')
+        #     res = 
         
         
         
@@ -386,7 +423,8 @@ class WidgetGallery(QDialog):
                 pass
         return result
 
-        
+
+
 app = QApplication(sys.argv)
 gallery = WidgetGallery()
 gallery.show()
